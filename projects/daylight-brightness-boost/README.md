@@ -1,56 +1,46 @@
-# Home Automation Resources
+# Light - Daylight Brightness Boost
 
-A collection of device profiles and Home Assistant automations that are designed to work together.
+A Home Assistant automation blueprint for Inovelli dimmers integrated through Zigbee2MQTT, with matching device profile examples and configuration notes.
 
-The repository has two related parts:
+With the light off, a single UP paddle press turns the light on at the configured initial brightness. After a short verification delay, the automation checks that the light is still on and remains within the expected brightness tolerance. If the selected daylight condition is satisfied, it smoothly raises the brightness.
 
-- **Profiles** document known-good device settings. They can be used as reference configurations and, where compatible, imported into Configuration Engine.
-- **Blueprints** use device capabilities and configuration choices to provide repeatable Home Assistant behavior.
-
-The intent is to keep the device configuration examples close to the automations they support, while keeping both independent of the Configuration Engine application.
-
-## Repository layout
+## Project contents
 
 ```text
-profiles/
-  inovelli/
-    Inovelli VZM31-SN Dimmer Example.yaml
-    Inovelli VZM35-SN 3 Speed Fan Control Example.yaml
-    Inovelli Examples Profile Notes.txt
-
-blueprints/
-  automation/
-    inovelli/
-      light_daylight_brightness_boost.yaml
+daylight-brightness-boost/
+├── README.md
+├── blueprints/
+│   └── light_daylight_brightness_boost.yaml
+└── profiles/
+    └── inovelli/
+        ├── Inovelli VZM31-SN Dimmer Example.yaml
+        ├── Inovelli VZM35-SN 3 Speed Fan Control Example.yaml
+        └── Inovelli Examples Profile Notes.txt
 ```
 
 ## Inovelli profiles
 
-The Inovelli examples cover two Zigbee2MQTT devices:
+The examples cover two Zigbee2MQTT devices:
 
 - **VZM31-SN** — Inovelli Blue Series dimmer.
 - **VZM35-SN** — Inovelli Blue Series 3-speed fan control.
 
 The profile YAML files use the Configuration Engine profile structure (`vendor`, `model`, and `values`). They are examples and reference configurations, not universal recommendations for every installation.
 
-The accompanying notes file describes the intended settings and device-specific behavior.
+The accompanying notes describe the intended settings and device-specific behavior. These profiles have been modified and documented specifically for use with this automation project; they should not be treated as generic or factory-default configurations.
 
-### Relationship to the daylight brightness blueprint
+### Relationship between the profile and blueprint
 
-The `Light - Daylight Brightness Boost` blueprint is intended for an Inovelli dimmer configured so that a single UP paddle press from OFF turns the light on at the expected initial brightness. The supplied VZM31-SN example profile documents the corresponding dimming-rate settings used during testing.
-
-The profile and blueprint serve different purposes:
+The VZM31-SN profile documents the dimmer configuration used during development and testing. The blueprint handles the Home Assistant automation behavior. The profile and blueprint serve different purposes:
 
 - The profile describes device configuration.
-- The blueprint describes the Home Assistant automation behavior.
+- The blueprint monitors and controls the Home Assistant light entity and listens for the corresponding Zigbee2MQTT paddle action.
 
 Use the profile as a reference when configuring the dimmer, then select the matching Home Assistant light and Zigbee2MQTT action topic when creating the automation.
 
-## Blueprint: Light - Daylight Brightness Boost
+The VZM35-SN profile is an example configuration for a conventional AC-powered three-speed fan. It is included as a related Inovelli device profile, not because the daylight brightness blueprint controls the fan.
 
-With the light off, a single UP paddle press turns the light on at the configured initial brightness. After a short verification delay, the automation checks that the light is still on and remains within the expected brightness tolerance. If the selected daylight condition is satisfied, it smoothly raises the brightness.
-
-### Requirements
+## Requirements
 
 - Home Assistant automation blueprint support.
 - An Inovelli dimmer integrated through Zigbee2MQTT.
@@ -58,17 +48,22 @@ With the light off, a single UP paddle press turns the light on at the configure
 - The Zigbee2MQTT action topic for that dimmer.
 - The Home Assistant Sun integration for either sun-based daylight mode.
 
-### Installation
+## Importing the blueprint
 
-Copy `blueprints/light_daylight_brightness_boost.yaml` into the Home Assistant directory:
+In Home Assistant:
 
-```text
-config/blueprints/automation/
-```
+1. Go to **Settings → Automations & scenes → Blueprints**.
+2. Select **Import blueprint**.
+3. Paste the blueprint's GitHub URL:
 
-Reload automations or restart Home Assistant, then create an automation from the imported blueprint.
+   `https://github.com/SoundOfMind/home-automation-resources/blob/main/projects/daylight-brightness-boost/blueprints/light_daylight_brightness_boost.yaml`
 
-### Inputs and defaults
+4. Preview the blueprint and select **Import blueprint**.
+5. Create an automation from the imported blueprint and configure its inputs.
+
+Home Assistant remembers the import URL as the blueprint source, allowing you to use **Re-import blueprint** when an updated version is published.
+
+## Inputs and defaults
 
 | Input | Default | Purpose |
 |---|---:|---|
@@ -84,7 +79,7 @@ Reload automations or restart Home Assistant, then create an automation from the
 | Time window start | 07:00 | Start of the time-window mode |
 | Time window end | 19:00 | End of the time-window mode |
 
-### MQTT action topic
+## MQTT action topic
 
 Zigbee2MQTT publishes the Inovelli paddle action as a plain payload on a topic ending in `/action`. The blueprint listens for `up_single`.
 
@@ -102,29 +97,29 @@ zigbee2mqtt/Bed1 Ceiling/action
 
 Use the Zigbee2MQTT friendly name, not the Home Assistant entity ID. The placeholder is instructional text; Home Assistant does not substitute it automatically.
 
-### Trigger and verification behavior
+## Trigger and verification behavior
 
 The blueprint has two independent triggers:
 
 - MQTT payload `up_single` on the configured action topic.
 - The selected light turning on.
 
-Either trigger starts the verification sequence. They are alternatives, not a requirement for both events to occur. After the delay, the automation checks the light state and brightness, then checks the selected daylight condition. If all checks pass, it calls `light.turn_on` with the configured target brightness and transition.
+Either trigger starts the verification sequence. They are alternatives; both events do not need to occur. After the delay, the automation checks the light state and brightness, then checks the selected daylight condition. If all checks pass, it calls `light.turn_on` with the configured target brightness and transition.
 
 The brightness check converts Home Assistant's 0–255 brightness attribute to a percentage before comparing it with the configured starting brightness and tolerance.
 
-### Daylight modes
+## Daylight modes
 
 - **Sun above horizon:** requires `sun.sun` to be `above_horizon`.
 - **Minimum sun elevation:** requires the Sun integration's elevation to meet the configured threshold. Negative values can permit the boost before sunrise or after sunset.
 - **Time window:** permits the boost during the configured daily interval, including intervals that cross midnight.
 
-### Multiple dimmers
+## Multiple dimmers
 
 Create a separate automation instance for each dimmer. Each instance has its own light entity, MQTT action topic, and settings.
 
 ## Configuration Engine
 
-Configuration Engine is a separate application for inspecting, capturing, comparing, and applying device profiles through Zigbee2MQTT. This repository keeps reusable device examples and related Home Assistant blueprints together without making them part of the Configuration Engine application itself.
+Configuration Engine is a separate application for inspecting, capturing, comparing, and applying device profiles through Zigbee2MQTT. This repository keeps device examples and related Home Assistant blueprints organized by project, independently of the Configuration Engine application.
 
 Repository: https://github.com/SoundOfMind/configuration_engine
