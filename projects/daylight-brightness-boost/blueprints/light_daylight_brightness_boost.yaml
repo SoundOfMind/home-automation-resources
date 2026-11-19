@@ -1,0 +1,199 @@
+blueprint:
+  name: Light - Daylight Brightness Boost
+  description: >
+    After a light turns on, wait for the configured verification delay.
+    If the light remains on at the expected initial brightness and the
+    selected daylight condition is satisfied, increase brightness.
+  domain: automation
+
+  input:
+    light_entity:
+      name: Dimmer
+      description: The Home Assistant light entity to monitor and control.
+      selector:
+        entity:
+          filter:
+            - domain: light
+
+    mqtt_action_topic:
+      name: MQTT action topic
+      description: >
+        Zigbee2MQTT action topic for the Inovelli dimmer.
+        Replace {device_name} with the device's Zigbee2MQTT friendly name.
+        For example, if the device name is Bed1 Ceiling, use
+        zigbee2mqtt/Bed1 Ceiling/action.
+      default: "zigbee2mqtt/{device_name}/action"
+      selector:
+        text:
+          type: text
+
+    verification_delay:
+      name: Verification delay
+      description: Seconds to wait before checking brightness.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          unit_of_measurement: seconds
+          mode: slider
+
+    initial_brightness:
+      name: Expected initial brightness
+      description: Expected brightness after turning on.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    brightness_tolerance:
+      name: Brightness tolerance
+      description: Allowed variation above or below initial brightness.
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    daylight_brightness:
+      name: Daylight brightness
+      description: Brightness to apply when daylight conditions are met.
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    transition_seconds:
+      name: Brightness transition
+      description: Time taken to reach the daylight brightness.
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 1
+          unit_of_measurement: seconds
+          mode: slider
+
+    daylight_mode:
+      name: Daylight condition
+      description: Select when the brightness boost is allowed.
+      default: sun_up
+      selector:
+        select:
+          options:
+            - label: Sun above horizon
+              value: sun_up
+            - label: Minimum sun elevation
+              value: sun_elevation
+            - label: Time window
+              value: time_window
+          mode: dropdown
+
+    minimum_sun_elevation:
+      name: Minimum sun elevation
+      description: Minimum solar elevation required.
+      default: 5
+      selector:
+        number:
+          min: -18
+          max: 90
+          step: 1
+          unit_of_measurement: "degrees"
+          mode: slider
+
+    time_window_start:
+      name: Time window start
+      default: "07:00:00"
+      selector:
+        time:
+
+    time_window_end:
+      name: Time window end
+      default: "19:00:00"
+      selector:
+        time:
+
+variables:
+  selected_light: !input light_entity
+  selected_daylight_mode: !input daylight_mode
+  expected_brightness: !input initial_brightness
+  brightness_tolerance: !input brightness_tolerance
+  minimum_sun_elevation: !input minimum_sun_elevation
+  time_window_start: !input time_window_start
+  time_window_end: !input time_window_end
+
+trigger_variables:
+  selected_mqtt_action_topic: !input mqtt_action_topic
+
+triggers:
+  - trigger: mqtt
+    topic: "{{ selected_mqtt_action_topic }}"
+    payload: up_single
+  - trigger: light.turned_on
+    target:
+      entity_id: !input light_entity
+
+actions:
+  - delay:
+      seconds: !input verification_delay
+
+  - condition: template
+    value_template: >
+      {% set brightness = state_attr(selected_light, 'brightness') %}
+      {% if is_state(selected_light, 'on') and brightness is not none %}
+        {% set actual = brightness | float(0) * 100 / 255 %}
+        {{
+          actual >= expected_brightness - brightness_tolerance
+          and
+          actual <= expected_brightness + brightness_tolerance
+        }}
+      {% else %}
+        false
+      {% endif %}
+
+  - condition: template
+    value_template: >
+      {% if selected_daylight_mode == 'sun_up' %}
+        {{ is_state('sun.sun', 'above_horizon') }}
+
+      {% elif selected_daylight_mode == 'sun_elevation' %}
+        {{
+          state_attr('sun.sun', 'elevation') | float(-90)
+          >= minimum_sun_elevation
+        }}
+
+      {% elif selected_daylight_mode == 'time_window' %}
+        {% set current = now().strftime('%H:%M:%S') %}
+        {% if time_window_start <= time_window_end %}
+          {{ time_window_start <= current <= time_window_end }}
+        {% else %}
+          {{ current >= time_window_start or current <= time_window_end }}
+        {% endif %}
+
+      {% else %}
+        false
+      {% endif %}
+
+  - action: light.turn_on
+    target:
+      entity_id: !input light_entity
+    data:
+      brightness_pct: !input daylight_brightness
+      transition: !input transition_seconds
+
+mode: parallel
+max: 10
+max_exceeded: silent

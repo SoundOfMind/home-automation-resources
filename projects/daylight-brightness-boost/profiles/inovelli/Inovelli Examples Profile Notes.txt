@@ -1,0 +1,35 @@
+Inovelli Examples Profile Notes
+
+Purpose of These Profiles
+
+The Inovelli device profiles included here have been modified and documented specifically for use with the Light - Daylight Brightness Boost Home Assistant automation blueprint.
+
+These profiles reflect the device configuration used during development and testing of the automation. They should not be considered generic or factory-default Inovelli configurations.
+
+The associated blueprint relies on specific device behavior, particularly the paddle action events published through Zigbee2MQTT.
+
+If you intend to use these profiles with other automations or configurations, review the settings and adjust them as appropriate.
+
+1. Both devices use green for the LED display.  The display turns off after 5 seconds.
+2. VZM31-SN dimmer settings.  If not using Light - Daylight Brightness Boost, the first single click always gives medium light (74 in this example):
+  a. defaultLevelLocal and defaultLevelRemote are set at 74, medium brightness.
+  b. doubleTapUpToParam55 and doubleTapUpToParam56 are both enabled.
+  c. minimumLevel = 61.  This dimmest setting may well be high for your installation, but the goal of this example is to initially avoid failure for your device.  Try lower settings for minimumLevel, but test with the light off, ensuring that your bulb lights reliably with a double tap down.
+  d. brightnessLevelForDoubleTapUp = 254, as some devices refuse 255.
+  e. brightnessLevelForDoubleTapDown = 2, the lowest value that worked for me.
+  f. With these settings, actions are as described below:
+     Click sequence           Previously off           Previously on
+     2x click up              brightest                brightest
+     2x click down            dimmest                  dimmest
+     1x click up              medium (sun down)        no change
+     1x click up              medium-high (sun up)     no change
+     1x click down            stays off                off
+     hold up                  moves to brightest       moves to brightest
+     hold down                stays off                moves to dimmest
+  g. Note that the 8 settings for dimming rate have been changed from 22 (2.2 seconds) to 20 for use with the provided blueprint.
+3. The VZM35-SN fan control is configured to power a conventional AC powered 3 speed fan with outputMode = Ceiling Fan (3-Speed).  Other settings:
+  a. lowLevelForFanControlMode = 63, mediumLevelForFanControlMode = 128 and highLevelForFanControlMode = 254 - factory defaults.
+  b. defaultLevelLocal and defaultLevelRemote are set to 63, so the fan will always start at low speed from a stop.
+  c. quickStartTime = 4 gives a quick start.  The range is 0 (no quick start) to 60 (60 sixtieths of a second, meaning 1 second).  60 behaves the same as 0 and some other values like 20 are refused.  A setting of 4, which should only give it 4/60 (0.067 seconds) of full speed power, seems illogical but works for my setup.
+  d. Some dimmer-related parameters are also included in this profile because the fan control can, under certain circumstances, control dimming. These values were brought over from the dimmer configuration even though this installation is not using the fan controller to control a light.
+  e. Note that the 8 settings for dimming rate have been changed from 22 (2.2 seconds) to 20 for use with the provided blueprint, as described in part d, above.
